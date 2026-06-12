@@ -1,0 +1,371 @@
+{
+  "name": "GraphRAG + AI Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-request",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -672,
+        -64
+      ],
+      "id": "d836c40f-553d-44cd-b731-c252456f84af",
+      "name": "Webhook",
+      "webhookId": "d85f928e-7374-47cf-ac48-d0493046fb2c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\n\nreturn {\n  message: body.message,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        -64
+      ],
+      "id": "ca316df6-be0b-4a48-ae61-ead5f1912b8f",
+      "name": "Подготовка данных"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "You are an advanced order processing orchestrator for e-commerce automation.\n\n**Available tools:**\n- Entity Extractor: extracts client_name, contact, items (name, quantity, price), total, intent\n- Offer Generator: creates professional commercial offers in Russian\n- GraphRAG Enricher: provides product recommendations and related items\n- Bitrix24 Deal Creator: creates a deal in Bitrix24 CRM (returns deal_id)\n\n**CRITICAL WORKFLOW FOR \"purchase\" INTENT:**\n1. ALWAYS call Entity Extractor first to parse the user's message\n2. ALWAYS call GraphRAG Enricher to get recommendations (use client_name and items)\n3. ALWAYS call Offer Generator to create commercial offer (use client_name, items, total)\n4. ALWAYS call Bitrix24 Deal Creator to create a deal (use client_name, items, total)\n5. Combine all results into FINAL response\n\n**FINAL RESPONSE FORMAT (MUST FOLLOW EXACTLY):**\n[commercial offer text from Offer Generator]\n\nДополнительные рекомендации:\n- [recommendation 1 from GraphRAG Enricher]\n- [recommendation 2 from GraphRAG Enricher]\n\n✅ Сделка №[deal_id] создана в Битрикс24. Менеджер свяжется с вами.\n\n**RULES:**\n- NEVER skip Bitrix24 Deal Creator for purchase intent\n- NEVER create your own commercial offer — use Offer Generator\n- ALWAYS respond in Russian\n- ALWAYS address client by name if extracted\nCRITICAL: When calling Bitrix24 Deal Creator, you MUST pass these exact fields:\n- client_name (string)\n- total (number)\n- items (array)\n\nExample call:\nBitrix24 Deal Creator(client_name=\"ООО Ромашка\", total=900000, items=[{name:\"ноутбук\", quantity:10, price:90000}])\n\nNEVER skip this tool. ALWAYS pass the extracted data."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -240,
+        -64
+      ],
+      "id": "2dcb60b3-cf85-4341-ae1c-0309247d5895",
+      "name": "Main Orchestrator"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Extract client name, contact, items, and intent from order messages. Return JSON.",
+        "text": "=Extract from this message: {{ $json.message }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an entity extraction specialist. Extract structured data from order messages.\n\nExtract these fields:\n- client_name: string (company or person name)\n- contact: string (phone number or email, if present)\n- items: array of objects with fields: name (string), quantity (number)\n- intent: one of [\"purchase\", \"question\", \"complaint\", \"other\"]\n\nImportant:\n- ONLY extract actual products. Do NOT include \"intent\" as an item.\n- If no quantity specified, set quantity = 1\n- Return ONLY valid JSON. No extra text.\n\nExample output:\n{\n  \"client_name\": \"ООО Ромашка\",\n  \"contact\": \"8-912-345-67-89\",\n  \"items\": [{\"name\": \"ноутбук ASUS ROG\", \"quantity\": 10}],\n  \"intent\": \"purchase\"\n}\nYou are an entity extraction specialist.\n\nExtract:\n- client_name: string\n- contact: string (phone or email)\n- items: array of {name: string, quantity: number, price: number (optional)}\n- total: number (quantity * price, if price available; otherwise calculate later)\n- intent: \"purchase\"/\"question\"/\"complaint\"/\"other\"\n\nRules:\n- If price is not specified, use 0\n- Return ONLY valid JSON"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        -352,
+        80
+      ],
+      "id": "937504cb-0f8f-43a0-8ab0-37093bd273db",
+      "name": "Entity Extractor"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n  {\n    \"success\": true,\n    \"result\": $json.output\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        240,
+        -64
+      ],
+      "id": "8d1360eb-1078-4ffc-b4c1-8f3bca7555f6",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -464,
+        80
+      ],
+      "id": "97253532-8fed-48b8-838a-2d0163304ed0",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "CIFZsInRVZOcLyRI",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Generate professional commercial offers in Russian. Takes client name and product list. Returns formatted offer text.",
+        "text": "=Date: {{ $now.toFormat('dd.MM.yyyy') }}\nClient name: {{ $json.client_name }}\nItems: {{ JSON.stringify($json.items) }}\nTotal: {{ $json.total }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a professional sales manager. Generate commercial offers in Russian.\n\nRules:\n- Use the client's name\n- List all products with quantity, price, and line total\n- Calculate total amount (sum of all line totals)\n- Use current date in format DD.MM.YYYY\n- Return ONLY the offer text, no JSON, no explanations\n\nTemplate:\nКОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ №{date}\n\nКлиент: {client_name}\n\nПозиция | Кол-во | Цена | Сумма\n{items_table}\n\nИтого: {total} руб.\nК оплате: {total} руб.\n\nС уважением, команда продаж"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        -80,
+        80
+      ],
+      "id": "80a8fa39-f500-4588-88f7-36233da97575",
+      "name": "Offer Generator"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -352,
+        240
+      ],
+      "id": "e3a15a80-5ced-4192-9c90-21948e8a1908",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "CIFZsInRVZOcLyRI",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -80,
+        240
+      ],
+      "id": "1de631ea-eb5d-4390-be72-f600f8f52e76",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "CIFZsInRVZOcLyRI",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log('=== ДАННЫЕ ПОСЛЕ MAIN ORCHESTRATOR ===');\nconsole.log('client_name:', $json.client_name);\nconsole.log('total:', $json.total);\nconsole.log('items:', JSON.stringify($json.items));\nconsole.log('ВСЕ ПОЛЯ:', Object.keys($json));\nreturn $json;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        -64
+      ],
+      "id": "88bf4b22-fbd4-46dc-9226-afa42622e3f7",
+      "name": "Entity Extractor1"
+    },
+    {
+      "parameters": {
+        "description": "Enrich order requests with additional context (related products, recommendations).",
+        "jsCode": "// GraphRAG Enricher — возвращает только данные, без console.log\nconst message = $json.message || '';\nconst clientName = $json.client_name || '';\n\nconst recommendations = [];\n\nif (message.toLowerCase().includes('ноутбук')) {\n  recommendations.push('Рекомендуем приобрести чехол и мышь к ноутбуку');\n}\nif (message.toLowerCase().includes('мышь')) {\n  recommendations.push('К мыши рекомендуем коврик');\n}\nif (clientName) {\n  recommendations.push(`Для ${clientName} действует скидка 5% при заказе от 100 000 руб`);\n}\nif (recommendations.length === 0) {\n  recommendations.push('Для подбора оптимальной комплектации обратитесь к нашему менеджеру');\n}\n\n// Возвращаем ТОЛЬКО объект, без console.log!\nreturn {\n  enrichment: {\n    recommendations: recommendations\n  }\n};"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        176,
+        80
+      ],
+      "id": "41f9ddba-a500-4991-a489-e7c859a9ea82",
+      "name": "GraphRAG Enricher"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://b24-berel9.bitrix24.ru/rest/1/8nt0t291x9vsa0wv/crm.deal.add",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"TITLE\": \"Заказ от {{ $json.client_name }}\",\n    \"OPPORTUNITY\": \"{{ $json.total }}\",\n    \"CURRENCY_ID\": \"RUB\",\n    \"STAGE_ID\": \"NEW\",\n    \"CATEGORY_ID\": \"0\",\n    \"COMMENTS\": \"Товары: {{ JSON.stringify($json.items) }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        304,
+        80
+      ],
+      "id": "751be10f-01bc-451c-9529-bf574417c1bc",
+      "name": "Bitrix24 Deal Creator"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Подготовка данных",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовка данных": {
+      "main": [
+        [
+          {
+            "node": "Main Orchestrator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entity Extractor": {
+      "ai_tool": [
+        [
+          {
+            "node": "Main Orchestrator",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Main Orchestrator": {
+      "main": [
+        [
+          {
+            "node": "Entity Extractor1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Main Orchestrator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Offer Generator": {
+      "ai_tool": [
+        [
+          {
+            "node": "Main Orchestrator",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Entity Extractor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Offer Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entity Extractor1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GraphRAG Enricher": {
+      "ai_tool": [
+        [
+          {
+            "node": "Main Orchestrator",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bitrix24 Deal Creator": {
+      "ai_tool": [
+        [
+          {
+            "node": "Main Orchestrator",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5d58b8a1-48b7-4900-9bcc-2dea0f9ac945",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d47d15e6c3c357e2e40228e92abb63e18bacbb9af664ee9c822db267fd79a4f4"
+  },
+  "id": "LmSIuMZsOGQgqyCI",
+  "tags": []
+}
