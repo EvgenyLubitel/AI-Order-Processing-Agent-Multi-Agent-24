@@ -57,11 +57,14 @@ Webhook → Main Orchestrator (AI Agent)
 | `AITUNNEL_API_KEY` | Твой ключ AITUNNEL |
 | `BITRIX24_WEBHOOK_URL` | URL вебхука Битрикс24 |
 
-### 3. Тестирование
+## 🧪 Тестирование
 
-#### PowerShell
+### PowerShell
 
 ```powershell
-$response = Invoke-RestMethod -Uri "https://n8n-graphrag-evgenylubitel.amvera.io/webhook-test/order-request" -Method POST -ContentType "application/json" -Body '{"message": "ООО Ромашка заказывает 10 ноутбуков ASUS ROG по 90000 руб"}'
-Write-Host $response.result
+$body = @{
+    message = "ООО Ромашка заказывает 10 ноутбуков ASUS ROG по 90000 руб"
+} | ConvertTo-Json
 
+$response = Invoke-RestMethod -Uri "https://n8n-graphrag-evgenylubitel.amvera.io/webhook-test/order-request" -Method POST -ContentType "application/json" -Body $body
+$response.result
